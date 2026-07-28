@@ -6,9 +6,9 @@ import {
   getLatestStatus,
   updateLatestStatus,
   insertVehicleLog,
+  insertTrackingPoint,
   updateLowFuelNotification,
   updateOfflineNotification,
-  insertTrackingPoint,
 } from "./database.ts";
 
 import {
@@ -40,6 +40,7 @@ Deno.serve(async (_req) => {
 
       const previous = await getLatestStatus(
         vehicle.vehicle_id,
+        await insertTrackingPoint(vehicle);
       );
 
 

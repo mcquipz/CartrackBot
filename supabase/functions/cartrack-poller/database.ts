@@ -180,3 +180,18 @@ export async function getTodayTrackingPoints(
 
   return data;
 }
+export async function insertTrackingPoint(vehicle: VehicleStatus) {
+  const { error } = await supabase
+    .from("vehicle_tracking_points")
+    .insert({
+      vehicle_id: vehicle.vehicle_id,
+      registration: vehicle.registration,
+      latitude: vehicle.location.latitude,
+      longitude: vehicle.location.longitude,
+      speed: vehicle.speed,
+      ignition: vehicle.ignition,
+      address: vehicle.location.position_description,
+    });
+
+  if (error) throw error;
+}
