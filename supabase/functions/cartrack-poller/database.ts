@@ -47,17 +47,33 @@ export async function updateLatestStatus(vehicle: VehicleStatus) {
 
 export async function insertVehicleLog(
   vehicle: VehicleStatus,
-  statusEvent: string,
+  eventType: string,
 ) {
   const { error } = await supabase
     .from("vehicle_logs")
     .insert({
-      vehicle_registration: vehicle.registration,
-      status_event: statusEvent,
-      location_address: vehicle.location.position_description,
+      vehicle_id: vehicle.vehicle_id,
+      registration: vehicle.registration,
+
+      event_type: eventType,
+
+      ignition: vehicle.ignition,
+      moving: vehicle.speed > 0,
+      speed: vehicle.speed,
+
       latitude: vehicle.location.latitude,
       longitude: vehicle.location.longitude,
-      google_maps_url: `https://www.google.com/maps?q=${vehicle.location.latitude},${vehicle.location.longitude}`,
+
+      address: vehicle.location.position_description,
+
+      google_maps_url:
+        `https://www.google.com/maps?q=${vehicle.location.latitude},${vehicle.location.longitude}`,
+
+      fuel_level: vehicle.fuel?.level ?? null,
+
+      battery_percentage: null,
+
+      raw_payload: vehicle,
     });
 
   if (error) throw error;

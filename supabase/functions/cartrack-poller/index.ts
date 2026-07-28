@@ -23,7 +23,6 @@ Deno.serve(async (_req) => {
       processed++;
 
       const previous = await getLatestStatus(vehicle.vehicle_id);
-
       // First time seeing this vehicle
       if (!previous) {
         await updateLatestStatus(vehicle);

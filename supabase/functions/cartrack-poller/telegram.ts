@@ -29,6 +29,34 @@ export async function sendTelegramMessage(message: string) {
   return await response.json();
 }
 
+export async function sendLocation(
+  latitude: number,
+  longitude: number,
+) {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID");
+  }
+
+  const response = await fetch(`${TELEGRAM_API}/sendLocation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      latitude,
+      longitude,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Telegram Location Error: ${error}`);
+  }
+
+  return await response.json();
+}
+
 export function createGoogleMapsLink(
   latitude: number,
   longitude: number,
@@ -43,6 +71,9 @@ export async function notifyVehicleStarted(
   longitude: number,
   address: string,
 ) {
+  // Send interactive Telegram map first
+  await sendLocation(latitude, longitude);
+
   const map = createGoogleMapsLink(latitude, longitude);
 
   await sendTelegramMessage(
@@ -53,7 +84,7 @@ export async function notifyVehicleStarted(
 
 📍 ${address}
 
-${map}`
+🗺️ ${map}`
   );
 }
 
@@ -63,6 +94,9 @@ export async function notifyVehicleStopped(
   longitude: number,
   address: string,
 ) {
+  // Send interactive Telegram map first
+  await sendLocation(latitude, longitude);
+
   const map = createGoogleMapsLink(latitude, longitude);
 
   await sendTelegramMessage(
@@ -72,6 +106,6 @@ export async function notifyVehicleStopped(
 
 📍 ${address}
 
-${map}`
+🗺️ ${map}`
   );
 }
