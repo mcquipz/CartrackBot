@@ -3,7 +3,7 @@ name: Cartrack Poller
 on:
   schedule:
     # Every minute
-    - cron: "* * * * *"
+    - cron: "*/5 * * * *"
 
   workflow_dispatch:
 
