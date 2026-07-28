@@ -39,10 +39,9 @@ Deno.serve(async (_req) => {
       processed++;
 
       const previous = await getLatestStatus(
-        vehicle.vehicle_id,
-        await insertTrackingPoint(vehicle);
+        vehicle.vehicle_id,  
       );
-
+await insertTrackingPoint(vehicle);
 
       // First time seeing vehicle
       if (!previous) {
