@@ -19,6 +19,7 @@ import {
   notifyLowFuel,
   notifyVehicleOffline,
   notifyVehicleOnline,
+  notifyOverspeed,
 } from "./telegram.ts";
 
 
@@ -41,22 +42,23 @@ Deno.serve(async (_req) => {
       const previous = await getLatestStatus(
         vehicle.vehicle_id,  
       );
-await insertTrackingPoint(vehicle);
 
       // First time seeing vehicle
-      if (!previous) {
+if (!previous) {
 
-        await updateLatestStatus(vehicle);
+  await insertTrackingPoint(vehicle);
 
-        await insertVehicleLog(
-          vehicle,
-          vehicle.ignition
-            ? "IGNITION ON"
-            : "IGNITION OFF",
-        );
+  await updateLatestStatus(vehicle);
 
-        continue;
-      }
+  await insertVehicleLog(
+    vehicle,
+    vehicle.ignition
+      ? "IGNITION ON"
+      : "IGNITION OFF",
+  );
+
+  continue;
+}
 
 
 
