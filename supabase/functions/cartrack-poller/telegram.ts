@@ -109,3 +109,135 @@ export async function notifyVehicleStopped(
 🗺️ ${map}`
   );
 }
+export async function notifyIgnitionOn(
+  registration: string,
+  latitude: number,
+  longitude: number,
+  address: string,
+) {
+  await sendLocation(latitude, longitude);
+
+  const map = createGoogleMapsLink(latitude, longitude);
+
+  await sendTelegramMessage(
+`🟢 *Ignition ON*
+
+*Vehicle:* ${registration}
+
+📍 ${address}
+
+🗺️ ${map}`
+  );
+}
+
+export async function notifyIgnitionOff(
+  registration: string,
+  latitude: number,
+  longitude: number,
+  address: string,
+) {
+  await sendLocation(latitude, longitude);
+
+  const map = createGoogleMapsLink(latitude, longitude);
+
+  await sendTelegramMessage(
+`🔴 *Ignition OFF*
+
+*Vehicle:* ${registration}
+
+📍 ${address}
+
+🗺️ ${map}`
+  );
+}
+export async function notifyLowFuel(
+  registration: string,
+  fuel: number,
+  latitude: number,
+  longitude: number,
+  address: string,
+) {
+  await sendLocation(latitude, longitude);
+
+  const map = createGoogleMapsLink(latitude, longitude);
+
+  await sendTelegramMessage(
+`⛽ *Low Fuel Warning*
+
+*Vehicle:* ${registration}
+*Fuel Remaining:* ${fuel}%
+
+📍 ${address}
+
+🗺️ ${map}`
+  );
+}
+export async function notifyVehicleOffline(
+  registration: string,
+  latitude: number,
+  longitude: number,
+  address: string,
+  lastUpdate: string,
+) {
+  await sendLocation(latitude, longitude);
+
+  const map = createGoogleMapsLink(
+    latitude,
+    longitude,
+  );
+
+  await sendTelegramMessage(
+`📴 *Vehicle Offline*
+
+*Vehicle:* ${registration}
+
+*Last Update:*
+${lastUpdate}
+
+📍 ${address}
+
+🗺️ ${map}`
+  );
+}
+
+
+export async function notifyVehicleOnline(
+  registration: string,
+) {
+  await sendTelegramMessage(
+`🟢 *Vehicle Online Again*
+
+*Vehicle:* ${registration}`
+  );
+}
+export async function notifyOverspeed(
+  registration: string,
+  speed: number,
+  latitude: number,
+  longitude: number,
+  address: string,
+) {
+
+  await sendLocation(
+    latitude,
+    longitude,
+  );
+
+  const map = createGoogleMapsLink(
+    latitude,
+    longitude,
+  );
+
+
+  await sendTelegramMessage(
+`🚨 *Overspeed Alert*
+
+*Vehicle:* ${registration}
+
+*Speed:* ${speed} km/h
+
+📍 ${address}
+
+🗺️ ${map}`
+  );
+}

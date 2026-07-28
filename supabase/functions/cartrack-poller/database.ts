@@ -78,3 +78,105 @@ export async function insertVehicleLog(
 
   if (error) throw error;
 }
+export async function updateLowFuelNotification(
+  vehicleId: number,
+  value: boolean,
+) {
+  const { error } = await supabase
+    .from("latest_vehicle_status")
+    .update({
+      low_fuel_notified: value,
+    })
+    .eq("vehicle_id", vehicleId);
+
+  if (error) throw error;
+}
+export async function updateOfflineNotification(
+  vehicleId: number,
+  value: boolean,
+) {
+  const { error } = await supabase
+    .from("latest_vehicle_status")
+    .update({
+      offline_notified: value,
+    })
+    .eq("vehicle_id", vehicleId);
+
+  if (error) throw error;
+}
+export async function insertTrackingPoint(
+  vehicle: VehicleStatus,
+) {
+
+  if (
+    vehicle.speed <= 0 ||
+    !vehicle.ignition
+  ) {
+    return;
+  }
+
+
+  const { error } = await supabase
+    .from("vehicle_tracking_points")
+    .insert({
+      vehicle_id: vehicle.vehicle_id,
+
+      registration:
+        vehicle.registration,
+
+      latitude:
+        vehicle.location.latitude,
+
+      longitude:
+        vehicle.location.longitude,
+
+      speed:
+        vehicle.speed,
+
+      ignition:
+        vehicle.ignition,
+    });
+
+
+  if (error) {
+    throw error;
+  }
+}
+export async function getTodayTrackingPoints(
+  vehicleId:number
+) {
+
+  const today =
+    new Date()
+      .toISOString()
+      .split("T")[0];
+
+
+  const {data,error} =
+    await supabase
+      .from(
+        "vehicle_tracking_points"
+      )
+      .select("*")
+      .eq(
+        "vehicle_id",
+        vehicleId
+      )
+      .gte(
+        "recorded_at",
+        `${today}T00:00:00`
+      )
+      .order(
+        "recorded_at",
+        {
+          ascending:true
+        }
+      );
+
+
+  if(error)
+    throw error;
+
+
+  return data;
+}
