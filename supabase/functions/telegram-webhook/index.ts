@@ -14,10 +14,9 @@ Deno.serve(async (req) => {
 
     const update = await req.json();
 
-    console.log(
-      "Incoming Update:",
-      JSON.stringify(update, null, 2),
-    );
+    // Log the entire update from Telegram
+    console.log("Incoming Update:");
+    console.log(JSON.stringify(update, null, 2));
 
     const message = update.message;
 
@@ -33,7 +32,12 @@ Deno.serve(async (req) => {
     }
 
     const chatId = message.chat.id;
-
+// console.log("========== CHAT INFO ==========");
+// console.log("Chat ID:", message.chat.id);
+// console.log("Chat Type:", message.chat.type);
+// console.log("Chat Title:", message.chat.title);
+// console.log("Username:", message.from?.username);
+// console.log("===============================");
     const text = message.text?.trim();
 
     console.log("Chat ID:", chatId);
@@ -44,12 +48,12 @@ Deno.serve(async (req) => {
       return new Response("OK");
     }
 
-    // Supports:
-/*
-/help
-/help@MyBot
-/status NHJ6670
-*/
+    /*
+      Supports:
+      /help
+      /help@MyBot
+      /status NHJ6670
+    */
     const command =
       text
         .split(" ")[0]
@@ -78,59 +82,74 @@ Deno.serve(async (req) => {
       return new Response("OK");
     }
 
-    // -------------------------
-    // STATUS
-    // -------------------------
-    if (command === "/status") {
+// -------------------------
+// STATUS
+// -------------------------
+if (command === "/status") {
 
-      console.log("Loading vehicle status...");
+  console.log("Loading vehicle status...");
 
-      const vehicles =
-        await getAllVehicleStatus();
+  const vehicles = await getAllVehicleStatus();
 
-      console.log(
-        `Loaded ${vehicles.length} vehicles.`,
-      );
+  console.log(`Loaded ${vehicles.length} vehicles.`);
 
-      let response =
-`🚗 *Vehicle Status*
+  let response = `🚗 *Vehicle Status*\n\n`;
 
-`;
+  for (const vehicle of vehicles) {
 
-      for (const vehicle of vehicles) {
+    const moving = (vehicle.speed ?? 0) > 5;
 
-        const moving =
-          vehicle.speed > 5;
+const odoKm =
+  vehicle.odometer != null
+    ? (vehicle.odometer / 1000).toLocaleString("en-US", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })
+    : "N/A";
 
-        response +=
+response +=
 `
 🚘 *${vehicle.registration}*
 
 ${moving ? "🟢 Moving" : "🔴 Stopped"}
 
-Speed: ${vehicle.speed ?? 0} km/h
+🚀 Speed: ${vehicle.speed ?? 0} km/h
 
-Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
+🛣 Road Speed: ${vehicle.road_speed ?? "N/A"} km/h
+
+🔑 Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
+
+🛣 Odometer: ${odoKm} km
+
+⛽ Fuel: ${vehicle.fuel_percentage ?? "N/A"}% (${vehicle.fuel_level ?? "N/A"} L)
+
+🔋 Battery Voltage: ${vehicle.battery_voltage ?? "N/A"} V
+
+📶 TCU Battery: ${vehicle.tcu_percentage ?? "N/A"}%
+
+🛰 GPS Fix: ${vehicle.gps_fix_type ?? "N/A"}
+
+🕒 Last Update:
+${vehicle.last_event}
 
 📍 ${vehicle.address}
 
 🗺 https://maps.google.com/?q=${vehicle.latitude},${vehicle.longitude}
 
 `;
+  }
 
-      }
+  console.log("Sending STATUS response...");
 
-      console.log("Sending STATUS response...");
+  await sendTelegramMessage(
+    chatId,
+    response,
+  );
 
-      await sendTelegramMessage(
-        chatId,
-        response,
-      );
+  console.log("STATUS sent.");
 
-      console.log("STATUS sent.");
-
-      return new Response("OK");
-    }
+  return new Response("OK");
+}
 
     // -------------------------
     // TRIPS
@@ -139,30 +158,20 @@ Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
 
       console.log("Loading today's trips...");
 
-      const trips =
-        await getTodayTrips();
+      const trips = await getTodayTrips();
 
-      console.log(
-        `Loaded ${trips.length} trips.`,
-      );
+      console.log(`Loaded ${trips.length} trips.`);
 
-      let response =
-`📋 *Today's Trips*
-
-`;
+      let response = `📋 *Today's Trips*\n\n`;
 
       if (trips.length === 0) {
-
-        response +=
-          "No trips today.";
-
+        response += "No trips today.";
       } else {
 
         for (const trip of trips) {
 
           response +=
-`
-🚗 *${trip.registration}*
+`🚗 *${trip.registration}*
 
 📍 ${trip.start_address}
 
@@ -173,9 +182,7 @@ Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
 ⏱ ${trip.duration_minutes} minutes
 
 `;
-
         }
-
       }
 
       console.log("Sending TRIPS response...");
@@ -190,7 +197,7 @@ Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
       return new Response("OK");
     }
 
-    console.log("Unknown command.");
+    console.log("Unknown command:", command);
 
     return new Response("OK");
 
@@ -213,6 +220,5 @@ Ignition: ${vehicle.ignition ? "ON 🟢" : "OFF 🔴"}
         },
       },
     );
-
   }
 });

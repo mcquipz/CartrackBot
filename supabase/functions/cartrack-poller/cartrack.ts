@@ -14,10 +14,22 @@ export interface VehicleStatus {
     updated: string;
   };
 
-  fuel?: {
-    level?: number;
-    precentage_left?: number;
-  };
+fuel?: {
+  level?: number;
+  precentage_left?: number;
+};
+
+road_speed?: number;
+vext?: string;
+tcu_percentage?: number;
+
+location: {
+  latitude: number;
+  longitude: number;
+  position_description: string;
+  updated: string;
+  gps_fix_type?: number;
+};
 }
 
 export interface CartrackResponse {

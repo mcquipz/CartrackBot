@@ -27,21 +27,38 @@ export async function updateLatestStatus(vehicle: VehicleStatus) {
   const { error } = await supabase
     .from("latest_vehicle_status")
     .upsert(
-      {
-        vehicle_id: vehicle.vehicle_id,
-        registration: vehicle.registration,
-        ignition: vehicle.ignition,
-        speed: vehicle.speed,
-        latitude: vehicle.location.latitude,
-        longitude: vehicle.location.longitude,
-        address: vehicle.location.position_description,
-        last_event: vehicle.event_ts,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "vehicle_id",
-      },
-    );
+  {
+    vehicle_id: vehicle.vehicle_id,
+    registration: vehicle.registration,
+    ignition: vehicle.ignition,
+    speed: vehicle.speed,
+
+    latitude: vehicle.location.latitude,
+    longitude: vehicle.location.longitude,
+    address: vehicle.location.position_description,
+
+    odometer: vehicle.odometer,
+    fuel_level: vehicle.fuel?.level ?? null,
+    fuel_percentage: vehicle.fuel?.precentage_left ?? null,
+
+    road_speed: vehicle.road_speed ?? null,
+
+    battery_voltage: vehicle.vext
+      ? Number(vehicle.vext)
+      : null,
+
+    tcu_percentage: vehicle.tcu_percentage ?? null,
+
+    gps_fix_type:
+      vehicle.location.gps_fix_type ?? null,
+
+    last_event: vehicle.event_ts,
+    updated_at: new Date().toISOString(),
+  },   // <-- comma here
+  {
+    onConflict: "vehicle_id",
+  },
+);
 
   if (error) throw error;
 }
