@@ -241,3 +241,58 @@ export async function notifyOverspeed(
 🗺️ ${map}`
   );
 }
+export async function notifyTripCompleted(
+  registration: string,
+  startAddress: string,
+  endAddress: string,
+  distanceKm: number,
+  durationMinutes: number,
+  routeUrl: string,
+  hadSignalGap: boolean,
+  gapMinutes: number,
+) {
+
+  const hours =
+    Math.floor(durationMinutes / 60);
+
+  const minutes =
+    durationMinutes % 60;
+
+
+  let message =
+`🏁 *Trip Completed*
+
+🚗 *Vehicle:* ${registration}
+
+📍 *Start:*
+${startAddress}
+
+📍 *End:*
+${endAddress}
+
+📏 *Distance:*
+${distanceKm.toFixed(3)} km
+
+⏱ *Duration:*
+${hours}h ${minutes}m
+
+🗺 *Route:*
+${routeUrl}`;
+
+
+  if (hadSignalGap) {
+
+    message +=
+`
+
+⚠ GPS Signal Warning
+
+No communication detected for approximately ${gapMinutes} minutes.
+
+The route may have missing points, but distance is based on vehicle odometer.`;
+
+  }
+
+
+  await sendTelegramMessage(message);
+}

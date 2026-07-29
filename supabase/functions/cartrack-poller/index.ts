@@ -7,6 +7,12 @@ import {
   updateLatestStatus,
   insertVehicleLog,
   insertTrackingPoint,
+
+  getTripState,
+  startTrip,
+  finishTrip,
+  updateTripMovement,
+
   updateLowFuelNotification,
   updateOfflineNotification,
 } from "./database.ts";
@@ -20,11 +26,24 @@ import {
   notifyVehicleOffline,
   notifyVehicleOnline,
   notifyOverspeed,
+  notifyTripCompleted,
 } from "./telegram.ts";
 
 
-const OFFLINE_MINUTES = 15;
-const OVERSPEED_LIMIT = 90;
+const OFFLINE_MINUTES =
+  Number(
+    Deno.env.get("OFFLINE_MINUTES") ?? "15",
+  );
+
+const OVERSPEED_LIMIT =
+  Number(
+    Deno.env.get("OVERSPEED_LIMIT") ?? "90",
+  );
+
+const TRIP_IDLE_MINUTES =
+  Number(
+    Deno.env.get("TRIP_IDLE_MINUTES") ?? "10",
+  );
 
 
 Deno.serve(async (_req) => {
@@ -193,71 +212,83 @@ if (!previous) {
 
 
 
-      /*
-        MOVEMENT CHECK
-      */
+/*
+  MOVEMENT CHECK
+*/
 
-      const startedMoving =
-        previousSpeed === 0 &&
-        vehicle.speed > 0;
+const MOVING_SPEED = 5;
 
+const isMoving =
+  vehicle.speed > MOVING_SPEED;
 
+const tripState =
+  await getTripState(
+    vehicle.vehicle_id,
+  );
 
-      const stoppedMoving =
-        previousSpeed > 0 &&
-        vehicle.speed === 0;
+// Vehicle started moving
+if (isMoving && !tripState?.active) {
 
+  await startTrip(vehicle);
 
+  await notifyVehicleStarted(
+    vehicle.registration,
+    vehicle.speed,
+    vehicle.location.latitude,
+    vehicle.location.longitude,
+    vehicle.location.position_description,
+  );
 
+  await insertVehicleLog(
+    vehicle,
+    "MOTION STARTED",
+  );
 
-      if (startedMoving) {
+  notifications++;
+}
 
+// Vehicle is still moving
+if (isMoving && tripState?.active) {
 
-        await notifyVehicleStarted(
-          vehicle.registration,
-          vehicle.speed,
-          vehicle.location.latitude,
-          vehicle.location.longitude,
-          vehicle.location.position_description,
-        );
+  await updateTripMovement(
+    vehicle,
+  );
 
+}
 
-        await insertVehicleLog(
-          vehicle,
-          "MOTION STARTED",
-        );
+// Vehicle stopped moving
+if (!isMoving && tripState?.active) {
 
+  const idleMinutes =
+    (
+      new Date(vehicle.event_ts).getTime() -
+      new Date(
+        tripState.last_movement_time,
+      ).getTime()
+    ) / 1000 / 60;
 
-        notifications++;
+  if (idleMinutes >= TRIP_IDLE_MINUTES) {
 
-      }
+    await finishTrip(
+      vehicle,
+      tripState,
+    );
 
+    await notifyVehicleStopped(
+      vehicle.registration,
+      vehicle.location.latitude,
+      vehicle.location.longitude,
+      vehicle.location.position_description,
+    );
 
+    await insertVehicleLog(
+      vehicle,
+      "MOTION STOPPED",
+    );
 
-
-      if (stoppedMoving) {
-
-
-        await notifyVehicleStopped(
-          vehicle.registration,
-          vehicle.location.latitude,
-          vehicle.location.longitude,
-          vehicle.location.position_description,
-        );
-
-
-        await insertVehicleLog(
-          vehicle,
-          "MOTION STOPPED",
-        );
-
-
-        notifications++;
-
-      }
-
-
-
+    notifications++;
+  }
+}
 
 
       /*

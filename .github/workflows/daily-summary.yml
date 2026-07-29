@@ -1,12 +1,8 @@
-name: Daily Trip Summary
+name: Daily Fleet Summary
 
 on:
   schedule:
-    # 8:00 AM Philippines time
-    # GitHub uses UTC
-    # 8 AM PH = 00:00 UTC
-    - cron: "0 0 * * *"
-
+    - cron: "0 11 * * *"
   workflow_dispatch:
 
 jobs:
@@ -14,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Invoke Daily Summary Function
+      - name: Invoke Daily Summary
         run: |
           curl -X POST \
             "${{ secrets.SUPABASE_URL }}/functions/v1/daily-summary" \

@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { VehicleStatus } from "./cartrack.ts";
+import { notifyTripCompleted } from "./telegram.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY =
@@ -104,44 +105,7 @@ export async function updateOfflineNotification(
 
   if (error) throw error;
 }
-export async function insertTrackingPoint(
-  vehicle: VehicleStatus,
-) {
 
-  if (
-    vehicle.speed <= 0 ||
-    !vehicle.ignition
-  ) {
-    return;
-  }
-
-
-  const { error } = await supabase
-    .from("vehicle_tracking_points")
-    .insert({
-      vehicle_id: vehicle.vehicle_id,
-
-      registration:
-        vehicle.registration,
-
-      latitude:
-        vehicle.location.latitude,
-
-      longitude:
-        vehicle.location.longitude,
-
-      speed:
-        vehicle.speed,
-
-      ignition:
-        vehicle.ignition,
-    });
-
-
-  if (error) {
-    throw error;
-  }
-}
 export async function getTodayTrackingPoints(
   vehicleId:number
 ) {
@@ -186,12 +150,219 @@ export async function insertTrackingPoint(vehicle: VehicleStatus) {
     .insert({
       vehicle_id: vehicle.vehicle_id,
       registration: vehicle.registration,
+
       latitude: vehicle.location.latitude,
       longitude: vehicle.location.longitude,
+
       speed: vehicle.speed,
       ignition: vehicle.ignition,
+
       address: vehicle.location.position_description,
+
+      bearing: vehicle.bearing,
+      odometer: vehicle.odometer,
+      cartrack_time: vehicle.event_ts,
     });
+
+  if (error) throw error;
+}
+
+
+
+export async function getTripState(
+  vehicleId: number,
+) {
+  const { data, error } = await supabase
+    .from("vehicle_trip_state")
+    .select("*")
+    .eq("vehicle_id", vehicleId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data;
+}
+
+
+
+
+export async function startTrip(
+  vehicle: VehicleStatus,
+) {
+  const { error } = await supabase
+    .from("vehicle_trip_state")
+    .upsert(
+      {
+        vehicle_id: vehicle.vehicle_id,
+        registration: vehicle.registration,
+
+        active: true,
+
+        start_time: vehicle.event_ts,
+        last_movement_time: vehicle.event_ts,
+
+        start_latitude: vehicle.location.latitude,
+        start_longitude: vehicle.location.longitude,
+        start_address: vehicle.location.position_description,
+
+        start_odometer: vehicle.odometer,
+
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "vehicle_id",
+      },
+    );
+
+  if (error) throw error;
+}
+
+export async function finishTrip(
+  vehicle: VehicleStatus,
+  tripState: any,
+) {
+
+const distanceKm =
+  tripState.start_odometer != null &&
+  vehicle.odometer != null
+    ? Number(
+        (
+          (vehicle.odometer - tripState.start_odometer) / 1000
+        ).toFixed(3)
+      )
+    : 0;
+
+  const start =
+    new Date(tripState.start_time);
+
+  const end =
+    new Date(vehicle.event_ts);
+    const lastMovement =
+  tripState.last_movement_time
+    ? new Date(tripState.last_movement_time)
+    : end;
+
+const gapMinutes =
+  Math.floor(
+    (
+      end.getTime() -
+      lastMovement.getTime()
+    ) / 1000 / 60
+  );
+const hadSignalGap =
+  gapMinutes >= 10;
+
+  const duration =
+    Math.floor(
+      (
+        end.getTime() -
+        start.getTime()
+      ) / 1000 / 60,
+    );
+
+  const route =
+    `https://www.google.com/maps/dir/${tripState.start_latitude},${tripState.start_longitude}/${vehicle.location.latitude},${vehicle.location.longitude}`;
+
+  const { error } = await supabase
+    .from("vehicle_trips")
+    .insert({
+
+      vehicle_id:
+        vehicle.vehicle_id,
+
+      registration:
+        vehicle.registration,
+
+      start_time:
+        tripState.start_time,
+
+      end_time:
+        vehicle.event_ts,
+
+      start_latitude:
+        tripState.start_latitude,
+
+      start_longitude:
+        tripState.start_longitude,
+
+      start_address:
+        tripState.start_address,
+
+      end_latitude:
+        vehicle.location.latitude,
+
+      end_longitude:
+        vehicle.location.longitude,
+
+      end_address:
+        vehicle.location.position_description,
+
+      start_odometer:
+        tripState.start_odometer,
+
+      end_odometer:
+        vehicle.odometer,
+
+      distance_km:
+        distanceKm,
+
+      duration_minutes:
+        duration,
+
+      route_url:
+        route,
+
+      signal_gap_minutes:
+        gapMinutes,
+      had_signal_gap:
+        hadSignalGap,
+    });
+
+  if (error) throw error;
+  await notifyTripCompleted(
+  vehicle.registration,
+
+  tripState.start_address,
+
+  vehicle.location.position_description,
+
+  distanceKm,
+
+  duration,
+
+  route,
+
+  false,
+
+  0,
+);
+
+  await supabase
+    .from("vehicle_trip_state")
+    .update({
+      active: false,
+      updated_at:
+        new Date().toISOString(),
+    })
+    .eq(
+      "vehicle_id",
+      vehicle.vehicle_id,
+    );
+}
+
+
+
+
+export async function updateTripMovement(
+  vehicle: VehicleStatus,
+) {
+  const { error } = await supabase
+    .from("vehicle_trip_state")
+    .update({
+      last_movement_time: vehicle.event_ts,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("vehicle_id", vehicle.vehicle_id);
 
   if (error) throw error;
 }
