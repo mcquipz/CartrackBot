@@ -22,10 +22,18 @@ export async function getAllVehicleStatus() {
         },
       );
 
+
+  console.log(
+    "Vehicle Status Query Result:",
+    JSON.stringify(data, null, 2)
+  );
+
+
   if (error)
     throw error;
 
-  return data;
+
+  return data ?? [];
 }
 export async function getTodayTrips() {
   const today = new Date().toISOString().split("T")[0];
