@@ -113,6 +113,84 @@ export async function assignDriver(
 
 }
 
+// ------------------------------------
+// TEMPORARY TELEGRAM DRIVER SELECTION
+// ------------------------------------
+
+export async function saveSelectedDriver(
+  chatId: string | number,
+  driverName: string,
+) {
+  const { error } = await supabase
+    .from("telegram_driver_selection")
+    .upsert(
+      {
+        chat_id: String(chatId),
+        driver_name: driverName,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "chat_id",
+      },
+    );
+
+  if (error) {
+    console.error(
+      "Failed to save selected driver:",
+      error,
+    );
+
+    throw error;
+  }
+}
+
+
+export async function getSelectedDriver(
+  chatId: string | number,
+) {
+  const { data, error } = await supabase
+    .from("telegram_driver_selection")
+    .select("driver_name")
+    .eq(
+      "chat_id",
+      String(chatId),
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "Failed to get selected driver:",
+      error,
+    );
+
+    throw error;
+  }
+
+  return data?.driver_name ?? null;
+}
+
+
+export async function clearSelectedDriver(
+  chatId: string | number,
+) {
+  const { error } = await supabase
+    .from("telegram_driver_selection")
+    .delete()
+    .eq(
+      "chat_id",
+      String(chatId),
+    );
+
+  if (error) {
+    console.error(
+      "Failed to clear selected driver:",
+      error,
+    );
+
+    throw error;
+  }
+}
+
 
 // ------------------------------------
 // GET TODAY'S DRIVER ASSIGNMENTS
@@ -391,5 +469,119 @@ export async function getTodayTrips() {
 
     },
   );
+
+}
+// ------------------------------------
+// GET TODAY'S VEHICLE EVENTS
+// ------------------------------------
+
+export async function getTodayVehicleEvents(
+  registration?: string
+) {
+
+  const today =
+    getTodayDate();
+
+
+  const {
+    data,
+    error,
+  } =
+    await supabase
+      .from("vehicle_logs")
+      .select(`
+        id,
+        created_at,
+        vehicle_registration,
+        status_event,
+        location_address,
+        latitude,
+        longitude
+      `)
+      .gte(
+        "created_at",
+        `${today}T00:00:00+08:00`,
+      )
+      .order(
+        "created_at",
+        {
+          ascending: false,
+        },
+      );
+
+
+  if(error){
+
+    console.error(
+      "Vehicle event query error:",
+      error,
+    );
+
+    return [];
+
+  }
+
+
+  let events =
+    data ?? [];
+
+
+  // Filter selected vehicle
+  if(
+    registration &&
+    registration !== "ALL"
+  ){
+
+    events =
+      events.filter(
+        event =>
+          event.vehicle_registration
+            .toUpperCase()
+          ===
+          registration.toUpperCase()
+      );
+
+  }
+
+
+  // Get today's driver assignments
+  const assignments =
+    await getTodayDriverAssignments();
+
+
+  const driverMap =
+    new Map(
+      assignments.map(
+        assignment => [
+          assignment.vehicle_registration
+            .toUpperCase(),
+
+          assignment.driver_name,
+
+        ],
+      ),
+    );
+
+
+  // Attach driver name to events
+  events =
+    events.map(
+      event => ({
+
+        ...event,
+
+        driver_name:
+          driverMap.get(
+            event.vehicle_registration
+              .toUpperCase(),
+          )
+          ??
+          "No driver assigned",
+
+      }),
+    );
+
+
+  return events;
 
 }

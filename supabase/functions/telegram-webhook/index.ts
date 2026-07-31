@@ -11,13 +11,239 @@ import {
   assignDriver,
   getAllVehicleStatus,
   getTodayTrips,
+  getTodayVehicleEvents,
+  saveSelectedDriver,
+  getSelectedDriver,
+  clearSelectedDriver,
 } from "./database.ts";
 
-const selectedDrivers =
-  new Map<
-    string | number,
-    string
-  >();
+async function sendTripReport(
+  chatId: string | number,
+  registration?: string,
+) {
+
+  console.log("Loading today's trips...");
+
+  let trips = await getTodayTrips();
+
+
+  // Filter selected vehicle
+  if (
+    registration &&
+    registration !== "ALL"
+  ) {
+
+    trips =
+      trips.filter(
+        trip =>
+          trip.registration.toUpperCase()
+          === registration.toUpperCase()
+      );
+
+  }
+
+
+  let response =
+`📋 *Today's Trips*
+
+`;
+
+
+  if(trips.length === 0){
+
+    response += "No trips today.";
+
+  }
+  else {
+
+
+    for(const trip of trips){
+
+
+      const distance =
+        trip.distance_km != null
+          ? Number(trip.distance_km).toFixed(1)
+          : "0";
+
+
+      const fuel =
+        trip.fuel_used != null
+          ? Math.round(trip.fuel_used)
+          : 0;
+
+
+      response +=
+`
+🚘 *${trip.registration}*
+
+👤 Driver:
+${trip.driver_name ?? "No driver assigned"}
+
+📍 From:
+${trip.start_address}
+
+➡️ To:
+${trip.end_address}
+
+📏 Distance:
+${distance} km
+
+⛽ Fuel Used:
+${fuel} L
+
+📊 Economy:
+${
+trip.fuel_economy
+?
+Number(trip.fuel_economy).toFixed(1)
+:
+"N/A"
+} km/L
+
+⏱ Duration:
+${trip.duration_minutes} minutes
+
+✅ Trip Completed
+
+`;
+
+    }
+
+  }
+
+
+await sendTelegramMessage(
+  chatId,
+  response
+);
+
+}
+
+async function sendVehicleEventsReport(
+  chatId: string | number,
+  registration?: string,
+){
+
+  console.log(
+    "Loading vehicle events..."
+  );
+
+
+  const events =
+    await getTodayVehicleEvents(
+      registration
+    );
+
+
+  let response =
+`📋 *Today's Vehicle Events*
+
+`;
+
+
+  if(events.length === 0){
+
+    response +=
+    "No vehicle events today.";
+
+  }
+  else {
+
+
+    for(
+      const event of events
+    ){
+
+      const eventTime =
+        new Date(
+          event.created_at
+        )
+        .toLocaleTimeString(
+          "en-PH",
+          {
+            timeZone:
+              "Asia/Manila",
+
+            hour:
+              "2-digit",
+
+            minute:
+              "2-digit",
+
+          }
+        );
+
+
+      let eventText =
+        event.status_event;
+
+
+      switch(event.status_event){
+
+        case "IGNITION ON":
+          eventText =
+            "🔑 Ignition ON";
+          break;
+
+
+        case "IGNITION OFF":
+          eventText =
+            "🔑 Ignition OFF";
+          break;
+
+
+        case "MOTION STARTED":
+          eventText =
+            "🟢 Vehicle Started";
+          break;
+
+
+        case "MOTION STOPPED":
+          eventText =
+            "🔴 Vehicle Stopped";
+          break;
+
+
+        case "TRIP COMPLETED":
+          eventText =
+            "✅ Trip Completed";
+          break;
+
+      }
+
+
+
+      response +=
+`
+🚘 *${event.vehicle_registration}*
+
+👤 Driver:
+${event.driver_name ?? "No driver assigned"}
+
+🕒 Time:
+${eventTime}
+
+📌 Event:
+${eventText}
+
+📍 Location:
+${event.location_address ?? "N/A"}
+
+🗺 https://maps.google.com/?q=${event.latitude},${event.longitude}
+
+`;
+
+    }
+
+  }
+
+
+  await sendTelegramMessage(
+    chatId,
+    response
+  );
+
+}
 
 Deno.serve(async (req) => {
   try {
@@ -69,16 +295,17 @@ let commandText = text;
 
 if (text === "⬅️ Back to Main Menu") {
 
-
-  selectedDrivers.delete(
-    chatId
+  await clearSelectedDriver(
+    chatId,
   );
 
+  await sendMenu(
+    chatId,
+  );
 
-  await sendMenu(chatId);
-
-
-  return new Response("OK");
+  return new Response(
+    "OK",
+  );
 
 }
 
@@ -129,11 +356,20 @@ if (
   )
 ) {
 
-selectedDrivers.set(
-  chatId,
-  driverSelection,
-);
+  // Save the selected driver in Supabase.
+  // This survives between Edge Function executions.
+  await saveSelectedDriver(
+    chatId,
+    driverSelection,
+  );
 
+  console.log(
+    "Driver selection saved:",
+    {
+      chatId,
+      driver: driverSelection,
+    },
+  );
 
   const vehicles =
     await getAllVehicleStatus();
@@ -171,10 +407,10 @@ if (
   )
 ) {
 
-  const selectedDriver =
-    selectedDrivers.get(
-      chatId,
-    );
+const selectedDriver =
+  await getSelectedDriver(
+    chatId,
+  );
 
 
   if (!selectedDriver) {
@@ -242,9 +478,16 @@ The driver has been assigned successfully.`,
   );
 
 
-  selectedDrivers.delete(
+await clearSelectedDriver(
+  chatId,
+);
+
+console.log(
+  "Driver selection cleared:",
+  {
     chatId,
-  );
+  },
+);
 
 
   // RETURN TO MAIN MENU
@@ -325,6 +568,15 @@ if (text.startsWith("📋 Trips ")) {
   selectedVehicle =
     text.replace("📋 Trips ", "")
         .trim();
+
+}
+
+if (text.startsWith("📌 Events ")) {
+
+ selectedCommand = "events";
+
+ selectedVehicle =
+ text.replace("📌 Events ","").trim();
 
 }
 
@@ -466,6 +718,29 @@ if(text === "📋 Trips"){
 
 }
 
+if(text === "📌 Events"){
+
+  const vehicles =
+    await getAllVehicleStatus();
+
+
+  await sendTelegramMessage(
+    chatId,
+    "📌 Select Vehicle Events",
+    {
+      reply_markup:
+        vehicleMenu(
+          "📌 Events",
+          vehicles
+        )
+    }
+  );
+
+
+  return new Response("OK");
+
+}
+
 // -------------------------
 // VEHICLE BUTTON LOCATION
 // -------------------------
@@ -535,76 +810,28 @@ return new Response("OK");
 
 if(selectedCommand === "trips"){
 
+  await sendTripReport(
+    chatId,
+    selectedVehicle,
+  );
 
-const trips =
- await getTodayTrips();
-
-
-let filtered =
- trips;
-
-
-if(
- selectedVehicle &&
- selectedVehicle !== "ALL"
-){
-
- filtered =
- trips.filter(
- t =>
- t.registration.toUpperCase()
- === selectedVehicle.toUpperCase()
- );
+  return new Response("OK");
 
 }
 
 
-let response =
-`📋 *Daily Trip Report*
+// -------------------------
+// VEHICLE BUTTON EVENTS
+// -------------------------
 
-`;
+if(selectedCommand === "events"){
 
+  await sendVehicleEventsReport(
+    chatId,
+    selectedVehicle,
+  );
 
-if(filtered.length===0){
-
-response += "No trips today.";
-
-}
-else {
-
-
-for(const trip of filtered){
-
-response +=
-`
-🚘 *${trip.registration}*
-
-📍 From:
-${trip.start_address}
-
-➡️ To:
-${trip.end_address}
-
-📏 Distance:
-${trip.distance_km} km
-
-⏱ Duration:
-${trip.duration_minutes} minutes
-
-`;
-
-}
-
-}
-
-
-await sendTelegramMessage(
-chatId,
-response
-);
-
-
-return new Response("OK");
+  return new Response("OK");
 
 }
 
@@ -918,65 +1145,15 @@ ${vehicle.last_event}
     // -------------------------
     // TRIPS
     // -------------------------
-    if (command === "/trips") {
+if (command === "/trips") {
 
-      console.log("Loading today's trips...");
+  await sendTripReport(chatId);
 
-      const trips = await getTodayTrips();
+  return new Response("OK");
 
-      console.log(`Loaded ${trips.length} trips.`);
-
-      let response = `📋 *Today's Trips*\n\n`;
-
-      if (trips.length === 0) {
-        response += "No trips today.";
-      } else {
-
-for (const trip of trips) {
-
-
-response +=
-`
-🚘 *${trip.registration}*
-
-👤 Driver:
-${trip.driver_assignments?.driver_name ?? "No driver assigned"}
-
-📍 From:
-${trip.start_address}
-
-➡️ To:
-${trip.end_address}
-
-📏 Distance:
-${trip.distance_km ?? 0} km
-
-⛽ Fuel Used:
-${trip.fuel_used ?? 0} L
-
-📊 Economy:
-${trip.fuel_economy
-  ? trip.fuel_economy.toFixed(2)
-  : "N/A"} km/L
-
-⏱ Duration:
-${trip.duration_minutes} minutes
-
-`;
 }
-      }
 
-      console.log("Sending TRIPS response...");
-
-      await sendTelegramMessage(
-        chatId,
-        response,
-      );
-
-      console.log("TRIPS sent.");
-
-      return new Response("OK");
-    }
+      
 
     console.log("Unknown command:", command);
 
@@ -1002,5 +1179,4 @@ ${trip.duration_minutes} minutes
       },
     );
   }
-
 });

@@ -125,32 +125,36 @@ Select an option:`,
     {
       reply_markup: {
         keyboard: [
+ [
+  {
+    text:"🚗 Status"
+  },
+  {
+    text:"📍 Location"
+  }
+ ],
 
-          [
-            {
-              text: "🚗 Status",
-            },
-            {
-              text: "📍 Location",
-            },
-          ],
+ [
+  {
+    text:"📋 Trips"
+  },
+  {
+    text:"📌 Events"
+  }
+ ],
 
-          [
-            {
-              text: "📋 Trips",
-            },
-            {
-              text: "👤 Assign Driver",
-            },
-          ],
+ [
+  {
+    text:"👤 Assign Driver"
+  }
+ ],
 
-          [
-            {
-              text: "⚙ Help",
-            },
-          ],
-
-        ],
+ [
+  {
+    text:"⚙ Help"
+  }
+ ],
+],
 
         resize_keyboard: true,
 
