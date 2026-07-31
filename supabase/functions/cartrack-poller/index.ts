@@ -219,36 +219,57 @@ if (!previous) {
 const MOVING_SPEED = 5;
 
 const isMoving =
-  vehicle.speed > MOVING_SPEED;
+  (vehicle.speed ?? 0) > MOVING_SPEED;
+
 
 const tripState =
   await getTripState(
     vehicle.vehicle_id,
   );
 
-// Vehicle started moving
-if (isMoving && !tripState?.active) {
 
-  await startTrip(vehicle);
+// ------------------------------------
+// VEHICLE STARTED MOVING
+// ------------------------------------
+
+if (
+  isMoving &&
+  !tripState?.active
+) {
+
+  await startTrip(
+    vehicle,
+  );
+
 
   await notifyVehicleStarted(
     vehicle.registration,
-    vehicle.speed,
+    vehicle.speed ?? 0,
     vehicle.location.latitude,
     vehicle.location.longitude,
     vehicle.location.position_description,
   );
+
 
   await insertVehicleLog(
     vehicle,
     "MOTION STARTED",
   );
 
+
   notifications++;
+
 }
 
-// Vehicle is still moving
-if (isMoving && tripState?.active) {
+
+// ------------------------------------
+// VEHICLE IS STILL MOVING
+// ------------------------------------
+
+else if (
+  isMoving &&
+  tripState?.active
+) {
 
   await updateTripMovement(
     vehicle,
@@ -256,23 +277,73 @@ if (isMoving && tripState?.active) {
 
 }
 
-// Vehicle stopped moving
-if (!isMoving && tripState?.active) {
+
+// ------------------------------------
+// VEHICLE IS STOPPED
+// ------------------------------------
+
+else if (
+  !isMoving &&
+  tripState?.active
+) {
+
+  const lastMovementTime =
+    new Date(
+      tripState.last_movement_time,
+    );
+
+
+  const currentEventTime =
+    new Date(
+      vehicle.event_ts,
+    );
+
 
   const idleMinutes =
-    (
-      new Date(vehicle.event_ts).getTime() -
-      new Date(
-        tripState.last_movement_time,
-      ).getTime()
-    ) / 1000 / 60;
+    Math.max(
+      0,
 
-  if (idleMinutes >= TRIP_IDLE_MINUTES) {
+      (
+        currentEventTime.getTime() -
+        lastMovementTime.getTime()
+      )
+      /
+      1000
+      /
+      60,
+    );
+
+
+  console.log(
+    "Trip idle check:",
+    {
+      registration:
+        vehicle.registration,
+
+      eventTime:
+        vehicle.event_ts,
+
+      lastMovementTime:
+        tripState.last_movement_time,
+
+      idleMinutes,
+
+      requiredIdleMinutes:
+        TRIP_IDLE_MINUTES,
+    },
+  );
+
+
+  if (
+    idleMinutes >=
+    TRIP_IDLE_MINUTES
+  ) {
 
     await finishTrip(
       vehicle,
       tripState,
     );
+
 
     await notifyVehicleStopped(
       vehicle.registration,
@@ -281,15 +352,18 @@ if (!isMoving && tripState?.active) {
       vehicle.location.position_description,
     );
 
+
     await insertVehicleLog(
       vehicle,
       "MOTION STOPPED",
     );
 
-    notifications++;
-  }
-}
 
+    notifications++;
+
+  }
+
+}
 
       /*
         LOW FUEL CHECK

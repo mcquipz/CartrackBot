@@ -200,67 +200,102 @@ export async function getTripState(
   return data;
 }
 
-
-
-
 export async function startTrip(
   vehicle: VehicleStatus,
 ) {
 
-  const { error } = await supabase
-    .from("vehicle_trip_state")
-    .upsert(
-      {
-        vehicle_id:
-          vehicle.vehicle_id,
+  const { error } =
+    await supabase
+      .from(
+        "vehicle_trip_state",
+      )
+      .upsert(
+        {
 
-        registration:
-          vehicle.registration,
+          vehicle_id:
+            vehicle.vehicle_id,
 
-
-        active:
-          true,
-
-
-        start_time:
-          vehicle.event_ts,
-
-        last_movement_time:
-          vehicle.event_ts,
+          registration:
+            vehicle.registration,
 
 
-        start_latitude:
-          vehicle.location.latitude,
-
-        start_longitude:
-          vehicle.location.longitude,
-
-        start_address:
-          vehicle.location.position_description,
+          active:
+            true,
 
 
-        start_odometer:
-          vehicle.odometer,
+          start_time:
+            vehicle.event_ts,
+
+          last_movement_time:
+            vehicle.event_ts,
 
 
-        // ADD THIS
-        start_fuel:
-          vehicle.fuel_level,
+          start_latitude:
+            vehicle.location.latitude,
+
+          start_longitude:
+            vehicle.location.longitude,
+
+          start_address:
+            vehicle.location
+              .position_description,
 
 
-        updated_at:
-          new Date().toISOString(),
+          start_odometer:
+            vehicle.odometer,
 
-      },
-      {
-        onConflict:
-          "vehicle_id",
-      },
+
+          // CORRECT FUEL PROPERTY
+          start_fuel:
+            vehicle.fuel?.level
+            ?? null,
+
+
+          updated_at:
+            new Date()
+              .toISOString(),
+
+        },
+        {
+
+          onConflict:
+            "vehicle_id",
+
+        },
+      );
+
+
+  if (error) {
+
+    console.error(
+      "Failed to start trip:",
+      error,
     );
 
-
-  if (error)
     throw error;
+
+  }
+
+
+  console.log(
+    "Trip started:",
+    {
+
+      registration:
+        vehicle.registration,
+
+      startTime:
+        vehicle.event_ts,
+
+      startOdometer:
+        vehicle.odometer,
+
+      startFuel:
+        vehicle.fuel?.level
+        ?? null,
+
+    },
+  );
 
 }
 
@@ -268,6 +303,69 @@ export async function finishTrip(
   vehicle: VehicleStatus,
   tripState: any,
 ) {
+
+  // ------------------------------------
+  // TRIP START
+  // ------------------------------------
+
+  const start =
+    new Date(
+      tripState.start_time,
+    );
+
+
+  // ------------------------------------
+  // LAST KNOWN MOVEMENT
+  // ------------------------------------
+
+  const lastMovement =
+    tripState.last_movement_time
+      ? new Date(
+          tripState.last_movement_time,
+        )
+      : start;
+
+
+  // ------------------------------------
+  // LATEST CARTRACK EVENT
+  // ------------------------------------
+
+  const latestEvent =
+    new Date(
+      vehicle.event_ts,
+    );
+
+
+  // ------------------------------------
+  // USE A SAFE TRIP END TIME
+  // ------------------------------------
+
+  /*
+    If the latest Cartrack event is much
+    later than the last movement, do not
+    make the trip duration include all
+    the parked time.
+
+    The trip ends at the last movement
+    timestamp in that situation.
+  */
+
+  const minutesAfterMovement =
+    (
+      latestEvent.getTime() -
+      lastMovement.getTime()
+    )
+    /
+    1000
+    /
+    60;
+
+
+  const end =
+    minutesAfterMovement > 10
+      ? lastMovement
+      : latestEvent;
+
 
   // ------------------------------------
   // CALCULATE DISTANCE
@@ -281,7 +379,9 @@ export async function finishTrip(
             (
               vehicle.odometer -
               tripState.start_odometer
-            ) / 1000
+            )
+            /
+            1000
           ).toFixed(3),
         )
       : 0;
@@ -291,23 +391,20 @@ export async function finishTrip(
   // CALCULATE DURATION
   // ------------------------------------
 
-  const start =
-    new Date(
-      tripState.start_time,
-    );
-
-  const end =
-    new Date(
-      vehicle.event_ts,
-    );
-
-
   const duration =
-    Math.floor(
-      (
-        end.getTime() -
-        start.getTime()
-      ) / 1000 / 60,
+    Math.max(
+      0,
+
+      Math.floor(
+        (
+          end.getTime() -
+          start.getTime()
+        )
+        /
+        1000
+        /
+        60,
+      ),
     );
 
 
@@ -315,20 +412,20 @@ export async function finishTrip(
   // CHECK GPS SIGNAL GAP
   // ------------------------------------
 
-  const lastMovement =
-    tripState.last_movement_time
-      ? new Date(
-          tripState.last_movement_time,
-        )
-      : end;
-
-
   const gapMinutes =
-    Math.floor(
-      (
-        end.getTime() -
-        lastMovement.getTime()
-      ) / 1000 / 60,
+    Math.max(
+      0,
+
+      Math.floor(
+        (
+          latestEvent.getTime() -
+          lastMovement.getTime()
+        )
+        /
+        1000
+        /
+        60,
+      ),
     );
 
 
@@ -349,25 +446,44 @@ export async function finishTrip(
 
 
   // ------------------------------------
-  // CALCULATE FUEL USED
+  // GET FUEL VALUES
   // ------------------------------------
 
   const startFuel =
-    tripState.start_fuel;
+    tripState.start_fuel
+    ?? null;
 
 
   const endFuel =
-    vehicle.fuel_level;
+    vehicle.fuel?.level
+    ?? null;
 
 
-  const fuelUsed =
+  // ------------------------------------
+  // CALCULATE FUEL USED
+  // ------------------------------------
+
+  const rawFuelUsed =
     startFuel != null &&
     endFuel != null
+      ? startFuel - endFuel
+      : null;
+
+
+  /*
+    Ignore negative fuel usage.
+
+    Fuel may increase because the vehicle
+    was refueled, or because the sensor
+    value fluctuated.
+  */
+
+  const fuelUsed =
+    rawFuelUsed != null &&
+    rawFuelUsed > 0
       ? Number(
-          (
-            startFuel -
-            endFuel
-          ).toFixed(2),
+          rawFuelUsed
+            .toFixed(2),
         )
       : null;
 
@@ -384,7 +500,8 @@ export async function finishTrip(
           (
             distanceKm /
             fuelUsed
-          ).toFixed(2),
+          )
+          .toFixed(2),
         )
       : null;
 
@@ -413,7 +530,7 @@ export async function finishTrip(
           tripState.start_time,
 
         end_time:
-          vehicle.event_ts,
+          end.toISOString(),
 
 
         start_latitude:
@@ -571,7 +688,15 @@ export async function finishTrip(
       registration:
         vehicle.registration,
 
+      startTime:
+        tripState.start_time,
+
+      endTime:
+        end.toISOString(),
+
       distanceKm,
+
+      duration,
 
       startFuel,
 
