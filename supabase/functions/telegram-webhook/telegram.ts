@@ -112,52 +112,53 @@ export async function sendLocation(
 
 // MAIN MENU
 export async function sendMenu(
- chatId:number|string,
-){
+  chatId: number | string,
+) {
 
-return await sendTelegramMessage(
-chatId,
+  return await sendTelegramMessage(
+    chatId,
 
 `🚗 *Mekas Fleet Tracker*
 
 Select an option:`,
 
-{
-reply_markup:{
-keyboard:[
+    {
+      reply_markup: {
+        keyboard: [
 
-[
-{
-text:"🚗 Status"
-},
-{
-text:"📍 Location"
+          [
+            {
+              text: "🚗 Status",
+            },
+            {
+              text: "📍 Location",
+            },
+          ],
+
+          [
+            {
+              text: "📋 Trips",
+            },
+            {
+              text: "👤 Assign Driver",
+            },
+          ],
+
+          [
+            {
+              text: "⚙ Help",
+            },
+          ],
+
+        ],
+
+        resize_keyboard: true,
+
+      },
+    },
+  );
+
 }
-
-],
-
-[
-{
-text:"📋 Trips"
-},
-{
-text:"⚙ Help"
-}
-
-]
-
-],
-
-resize_keyboard:true
-
-}
-
-}
-
-);
-
-}
-
 
 
 
@@ -189,6 +190,78 @@ export function vehicleMenu(
       ],
 
       // BACK TO MAIN MENU
+      [
+        {
+          text:
+            "⬅️ Back to Main Menu",
+        },
+      ],
+
+    ],
+
+    resize_keyboard: true,
+
+  };
+
+}
+// DRIVER SELECTION MENU
+export function driverMenu() {
+
+  return {
+
+    keyboard: [
+
+      [
+        {
+          text: "👤 Reynaldo Andalay",
+        },
+      ],
+
+      [
+        {
+          text: "👤 Romie Pitos",
+        },
+      ],
+
+      [
+        {
+          text: "👤 Juanito Rodrigo",
+        },
+      ],
+
+      [
+        {
+          text: "⬅️ Back to Main Menu",
+        },
+      ],
+
+    ],
+
+    resize_keyboard: true,
+
+  };
+
+}
+
+
+// DRIVER VEHICLE SELECTION MENU
+export function driverVehicleMenu(
+  vehicles: any[],
+) {
+
+  return {
+
+    keyboard: [
+
+      ...vehicles.map(
+        (vehicle) => [
+          {
+            text:
+              `🚘 ${vehicle.registration}`,
+          },
+        ],
+      ),
+
       [
         {
           text:

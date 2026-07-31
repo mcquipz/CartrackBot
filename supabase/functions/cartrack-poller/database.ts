@@ -206,32 +206,62 @@ export async function getTripState(
 export async function startTrip(
   vehicle: VehicleStatus,
 ) {
+
   const { error } = await supabase
     .from("vehicle_trip_state")
     .upsert(
       {
-        vehicle_id: vehicle.vehicle_id,
-        registration: vehicle.registration,
+        vehicle_id:
+          vehicle.vehicle_id,
 
-        active: true,
+        registration:
+          vehicle.registration,
 
-        start_time: vehicle.event_ts,
-        last_movement_time: vehicle.event_ts,
 
-        start_latitude: vehicle.location.latitude,
-        start_longitude: vehicle.location.longitude,
-        start_address: vehicle.location.position_description,
+        active:
+          true,
 
-        start_odometer: vehicle.odometer,
 
-        updated_at: new Date().toISOString(),
+        start_time:
+          vehicle.event_ts,
+
+        last_movement_time:
+          vehicle.event_ts,
+
+
+        start_latitude:
+          vehicle.location.latitude,
+
+        start_longitude:
+          vehicle.location.longitude,
+
+        start_address:
+          vehicle.location.position_description,
+
+
+        start_odometer:
+          vehicle.odometer,
+
+
+        // ADD THIS
+        start_fuel:
+          vehicle.fuel_level,
+
+
+        updated_at:
+          new Date().toISOString(),
+
       },
       {
-        onConflict: "vehicle_id",
+        onConflict:
+          "vehicle_id",
       },
     );
 
-  if (error) throw error;
+
+  if (error)
+    throw error;
+
 }
 
 export async function finishTrip(
@@ -239,35 +269,38 @@ export async function finishTrip(
   tripState: any,
 ) {
 
-const distanceKm =
-  tripState.start_odometer != null &&
-  vehicle.odometer != null
-    ? Number(
-        (
-          (vehicle.odometer - tripState.start_odometer) / 1000
-        ).toFixed(3)
-      )
-    : 0;
+  // ------------------------------------
+  // CALCULATE DISTANCE
+  // ------------------------------------
+
+  const distanceKm =
+    tripState.start_odometer != null &&
+    vehicle.odometer != null
+      ? Number(
+          (
+            (
+              vehicle.odometer -
+              tripState.start_odometer
+            ) / 1000
+          ).toFixed(3),
+        )
+      : 0;
+
+
+  // ------------------------------------
+  // CALCULATE DURATION
+  // ------------------------------------
 
   const start =
-    new Date(tripState.start_time);
+    new Date(
+      tripState.start_time,
+    );
 
   const end =
-    new Date(vehicle.event_ts);
-    const lastMovement =
-  tripState.last_movement_time
-    ? new Date(tripState.last_movement_time)
-    : end;
+    new Date(
+      vehicle.event_ts,
+    );
 
-const gapMinutes =
-  Math.floor(
-    (
-      end.getTime() -
-      lastMovement.getTime()
-    ) / 1000 / 60
-  );
-const hadSignalGap =
-  gapMinutes >= 10;
 
   const duration =
     Math.floor(
@@ -277,94 +310,280 @@ const hadSignalGap =
       ) / 1000 / 60,
     );
 
+
+  // ------------------------------------
+  // CHECK GPS SIGNAL GAP
+  // ------------------------------------
+
+  const lastMovement =
+    tripState.last_movement_time
+      ? new Date(
+          tripState.last_movement_time,
+        )
+      : end;
+
+
+  const gapMinutes =
+    Math.floor(
+      (
+        end.getTime() -
+        lastMovement.getTime()
+      ) / 1000 / 60,
+    );
+
+
+  const hadSignalGap =
+    gapMinutes >= 10;
+
+
+  // ------------------------------------
+  // CREATE GOOGLE MAPS ROUTE
+  // ------------------------------------
+
   const route =
-    `https://www.google.com/maps/dir/${tripState.start_latitude},${tripState.start_longitude}/${vehicle.location.latitude},${vehicle.location.longitude}`;
+    `https://www.google.com/maps/dir/` +
+    `${tripState.start_latitude},` +
+    `${tripState.start_longitude}/` +
+    `${vehicle.location.latitude},` +
+    `${vehicle.location.longitude}`;
 
-  const { error } = await supabase
-    .from("vehicle_trips")
-    .insert({
 
-      vehicle_id:
+  // ------------------------------------
+  // CALCULATE FUEL USED
+  // ------------------------------------
+
+  const startFuel =
+    tripState.start_fuel;
+
+
+  const endFuel =
+    vehicle.fuel_level;
+
+
+  const fuelUsed =
+    startFuel != null &&
+    endFuel != null
+      ? Number(
+          (
+            startFuel -
+            endFuel
+          ).toFixed(2),
+        )
+      : null;
+
+
+  // ------------------------------------
+  // CALCULATE FUEL ECONOMY
+  // ------------------------------------
+
+  const fuelEconomy =
+    fuelUsed != null &&
+    fuelUsed > 0 &&
+    distanceKm > 0
+      ? Number(
+          (
+            distanceKm /
+            fuelUsed
+          ).toFixed(2),
+        )
+      : null;
+
+
+  // ------------------------------------
+  // SAVE COMPLETED TRIP
+  // ------------------------------------
+
+  const {
+    error,
+  } =
+    await supabase
+      .from(
+        "vehicle_trips",
+      )
+      .insert({
+
+        vehicle_id:
+          vehicle.vehicle_id,
+
+        registration:
+          vehicle.registration,
+
+
+        start_time:
+          tripState.start_time,
+
+        end_time:
+          vehicle.event_ts,
+
+
+        start_latitude:
+          tripState.start_latitude,
+
+        start_longitude:
+          tripState.start_longitude,
+
+        start_address:
+          tripState.start_address,
+
+
+        end_latitude:
+          vehicle.location.latitude,
+
+        end_longitude:
+          vehicle.location.longitude,
+
+        end_address:
+          vehicle.location
+            .position_description,
+
+
+        start_odometer:
+          tripState.start_odometer,
+
+        end_odometer:
+          vehicle.odometer,
+
+
+        // FUEL DATA
+
+        start_fuel:
+          startFuel,
+
+        end_fuel:
+          endFuel,
+
+        fuel_used:
+          fuelUsed,
+
+        fuel_economy:
+          fuelEconomy,
+
+
+        // TRIP DATA
+
+        distance_km:
+          distanceKm,
+
+        duration_minutes:
+          duration,
+
+        route_url:
+          route,
+
+
+        // GPS SIGNAL DATA
+
+        signal_gap_minutes:
+          gapMinutes,
+
+        had_signal_gap:
+          hadSignalGap,
+
+      });
+
+
+  if (error) {
+
+    console.error(
+      "Failed to save trip:",
+      error,
+    );
+
+    throw error;
+
+  }
+
+
+  // ------------------------------------
+  // SEND TRIP COMPLETED NOTIFICATION
+  // ------------------------------------
+
+  await notifyTripCompleted(
+
+    vehicle.registration,
+
+    tripState.start_address,
+
+    vehicle.location
+      .position_description,
+
+    distanceKm,
+
+    duration,
+
+    route,
+
+    hadSignalGap,
+
+    gapMinutes,
+
+    startFuel,
+
+    endFuel,
+
+  );
+
+
+  // ------------------------------------
+  // CLOSE ACTIVE TRIP
+  // ------------------------------------
+
+  const {
+    error:
+      updateError,
+  } =
+    await supabase
+      .from(
+        "vehicle_trip_state",
+      )
+      .update({
+
+        active:
+          false,
+
+        updated_at:
+          new Date()
+            .toISOString(),
+
+      })
+      .eq(
+        "vehicle_id",
         vehicle.vehicle_id,
+      );
+
+
+  if (updateError) {
+
+    console.error(
+      "Failed to close trip:",
+      updateError,
+    );
+
+    throw updateError;
+
+  }
+
+
+  console.log(
+    "Trip completed successfully:",
+    {
 
       registration:
         vehicle.registration,
 
-      start_time:
-        tripState.start_time,
+      distanceKm,
 
-      end_time:
-        vehicle.event_ts,
+      startFuel,
 
-      start_latitude:
-        tripState.start_latitude,
+      endFuel,
 
-      start_longitude:
-        tripState.start_longitude,
+      fuelUsed,
 
-      start_address:
-        tripState.start_address,
+      fuelEconomy,
 
-      end_latitude:
-        vehicle.location.latitude,
+    },
+  );
 
-      end_longitude:
-        vehicle.location.longitude,
-
-      end_address:
-        vehicle.location.position_description,
-
-      start_odometer:
-        tripState.start_odometer,
-
-      end_odometer:
-        vehicle.odometer,
-
-      distance_km:
-        distanceKm,
-
-      duration_minutes:
-        duration,
-
-      route_url:
-        route,
-
-      signal_gap_minutes:
-        gapMinutes,
-      had_signal_gap:
-        hadSignalGap,
-    });
-
-  if (error) throw error;
-  await notifyTripCompleted(
-  vehicle.registration,
-
-  tripState.start_address,
-
-  vehicle.location.position_description,
-
-  distanceKm,
-
-  duration,
-
-  route,
-
-  false,
-
-  0,
-);
-
-  await supabase
-    .from("vehicle_trip_state")
-    .update({
-      active: false,
-      updated_at:
-        new Date().toISOString(),
-    })
-    .eq(
-      "vehicle_id",
-      vehicle.vehicle_id,
-    );
 }
 
 

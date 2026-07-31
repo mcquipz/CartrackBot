@@ -3,12 +3,21 @@ import {
   sendLocation,
   sendMenu,
   vehicleMenu,
+  driverMenu,
+  driverVehicleMenu,
 } from "./telegram.ts";
 
 import {
+  assignDriver,
   getAllVehicleStatus,
   getTodayTrips,
 } from "./database.ts";
+
+const selectedDrivers =
+  new Map<
+    string | number,
+    string
+  >();
 
 Deno.serve(async (req) => {
   try {
@@ -60,9 +69,193 @@ let commandText = text;
 
 if (text === "⬅️ Back to Main Menu") {
 
+
+  selectedDrivers.delete(
+    chatId
+  );
+
+
   await sendMenu(chatId);
 
+
   return new Response("OK");
+
+}
+
+// -------------------------
+// DRIVER ASSIGNMENT MENU
+// -------------------------
+
+if (text === "👤 Assign Driver") {
+
+  await sendTelegramMessage(
+    chatId,
+    "👤 Select a driver:",
+    {
+      reply_markup:
+        driverMenu(),
+    },
+  );
+
+  return new Response("OK");
+
+}
+
+// -------------------------
+// DRIVER SELECTED
+// -------------------------
+
+const drivers = [
+
+  "Reynaldo Andalay",
+
+  "Romie Pitos",
+
+  "Juanito Rodrigo",
+
+];
+
+
+const driverSelection =
+  text.replace(
+    "👤 ",
+    "",
+  );
+
+
+if (
+  drivers.includes(
+    driverSelection,
+  )
+) {
+
+selectedDrivers.set(
+  chatId,
+  driverSelection,
+);
+
+
+  const vehicles =
+    await getAllVehicleStatus();
+
+
+  await sendTelegramMessage(
+    chatId,
+
+`👤 Driver selected:
+
+*${driverSelection}*
+
+🚘 Select a vehicle:`,
+
+    {
+      reply_markup:
+        driverVehicleMenu(
+          vehicles,
+        ),
+    },
+  );
+
+
+  return new Response("OK");
+
+}
+
+// -------------------------
+// DRIVER VEHICLE SELECTED
+// -------------------------
+
+if (
+  text.startsWith(
+    "🚘 ",
+  )
+) {
+
+  const selectedDriver =
+    selectedDrivers.get(
+      chatId,
+    );
+
+
+  if (!selectedDriver) {
+
+    await sendTelegramMessage(
+      chatId,
+
+`⚠️ Please select a driver first.`,
+
+    );
+
+
+    await sendMenu(
+      chatId,
+    );
+
+
+    return new Response(
+      "OK",
+    );
+
+  }
+
+
+  const registration =
+    text.replace(
+      "🚘 ",
+      "",
+    )
+    .trim();
+
+
+  // Driver assignment will be saved here
+await assignDriver(
+  selectedDriver,
+  registration,
+);
+
+
+console.log(
+  "Driver assignment saved:",
+  {
+    driver:
+      selectedDriver,
+
+    vehicle:
+      registration,
+  },
+);
+
+
+  await sendTelegramMessage(
+    chatId,
+
+`✅ *Driver Assigned*
+
+👤 Driver:
+*${selectedDriver}*
+
+🚘 Vehicle:
+*${registration}*
+
+The driver has been assigned successfully.`,
+
+  );
+
+
+  selectedDrivers.delete(
+    chatId,
+  );
+
+
+  // RETURN TO MAIN MENU
+  await sendMenu(
+    chatId,
+  );
+
+
+  return new Response(
+    "OK",
+  );
 
 }
 
@@ -189,6 +382,9 @@ response +=
 `
 🚘 *${vehicle.registration}*
 
+👤 Driver:
+${vehicle.driver_name}
+
 ${moving ? "🟢 Moving" : "🔴 Stopped"}
 
 🚀 Speed:
@@ -310,6 +506,9 @@ for(const vehicle of vehicles){
  chatId,
 `
 📍 *${vehicle.registration}*
+
+👤 Driver:
+${vehicle.driver_name}
 
 🚀 Speed:
 ${vehicle.speed} km/h
@@ -594,6 +793,9 @@ chatId,
 
 🚘 *${vehicle.registration}*
 
+👤 Driver:
+${vehicle.driver_name}
+
 ${moving ? "🟢 Moving" : "🔴 Stopped"}
 
 🚀 Speed:
@@ -670,6 +872,9 @@ response +=
 `
 🚘 *${vehicle.registration}*
 
+👤 Driver:
+${vehicle.driver_name}
+
 ${moving ? "🟢 Moving" : "🔴 Stopped"}
 
 🚀 Speed: ${vehicle.speed ?? 0} km/h
@@ -727,21 +932,38 @@ ${vehicle.last_event}
         response += "No trips today.";
       } else {
 
-        for (const trip of trips) {
+for (const trip of trips) {
 
-          response +=
-`🚗 *${trip.registration}*
 
-📍 ${trip.start_address}
+response +=
+`
+🚘 *${trip.registration}*
 
-➡️ ${trip.end_address}
+👤 Driver:
+${trip.driver_assignments?.driver_name ?? "No driver assigned"}
 
-📏 ${trip.distance_km} km
+📍 From:
+${trip.start_address}
 
-⏱ ${trip.duration_minutes} minutes
+➡️ To:
+${trip.end_address}
+
+📏 Distance:
+${trip.distance_km ?? 0} km
+
+⛽ Fuel Used:
+${trip.fuel_used ?? 0} L
+
+📊 Economy:
+${trip.fuel_economy
+  ? trip.fuel_economy.toFixed(2)
+  : "N/A"} km/L
+
+⏱ Duration:
+${trip.duration_minutes} minutes
 
 `;
-        }
+}
       }
 
       console.log("Sending TRIPS response...");

@@ -250,19 +250,41 @@ export async function notifyTripCompleted(
   routeUrl: string,
   hadSignalGap: boolean,
   gapMinutes: number,
+  startFuel?: number,
+  endFuel?: number,
 ) {
 
   const hours =
-    Math.floor(durationMinutes / 60);
+    Math.floor(
+      durationMinutes / 60,
+    );
 
   const minutes =
     durationMinutes % 60;
 
 
+  // Calculate fuel used
+  const fuelUsed =
+    startFuel != null &&
+    endFuel != null
+      ? startFuel - endFuel
+      : null;
+
+
+  // Calculate fuel economy
+  const fuelEconomy =
+    fuelUsed != null &&
+    fuelUsed > 0 &&
+    distanceKm > 0
+      ? distanceKm / fuelUsed
+      : null;
+
+
   let message =
 `🏁 *Trip Completed*
 
-🚗 *Vehicle:* ${registration}
+🚗 *Vehicle:*
+${registration}
 
 📍 *Start:*
 ${startAddress}
@@ -276,6 +298,35 @@ ${distanceKm.toFixed(3)} km
 ⏱ *Duration:*
 ${hours}h ${minutes}m
 
+⛽ *Start Fuel:*
+${
+  startFuel != null
+    ? startFuel.toFixed(2) + " L"
+    : "N/A"
+}
+
+⛽ *End Fuel:*
+${
+  endFuel != null
+    ? endFuel.toFixed(2) + " L"
+    : "N/A"
+}
+
+⛽ *Fuel Used:*
+${
+  fuelUsed != null &&
+  fuelUsed >= 0
+    ? fuelUsed.toFixed(2) + " L"
+    : "N/A"
+}
+
+📈 *Fuel Economy:*
+${
+  fuelEconomy != null
+    ? fuelEconomy.toFixed(2) + " km/L"
+    : "N/A"
+}
+
 🗺 *Route:*
 ${routeUrl}`;
 
@@ -285,7 +336,7 @@ ${routeUrl}`;
     message +=
 `
 
-⚠ GPS Signal Warning
+⚠ *GPS Signal Warning*
 
 No communication detected for approximately ${gapMinutes} minutes.
 
@@ -294,5 +345,10 @@ The route may have missing points, but distance is based on vehicle odometer.`;
   }
 
 
-  await sendTelegramMessage(message);
+  // sendTelegramMessage already uses
+  // TELEGRAM_CHAT_ID internally
+  await sendTelegramMessage(
+    message,
+  );
+
 }

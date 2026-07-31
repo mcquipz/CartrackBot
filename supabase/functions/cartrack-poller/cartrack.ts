@@ -6,6 +6,7 @@ export interface VehicleStatus {
   ignition: boolean;
   bearing: number;
   odometer: number;
+  fuel_level?: number;
 
   location: {
     latitude: number;
